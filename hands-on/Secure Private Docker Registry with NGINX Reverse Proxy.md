@@ -8,7 +8,12 @@ This project documents my hands-on journey of building a **secure, production-st
 * 🧠 Debugging real-world proxy + protocol issues
 
 ---
+## One-liner 
 
+Fixed an infinite Docker image push loop caused by protocol mismatch in a TLS-terminated NGINX reverse proxy by forwarding the original request scheme using X-Forwarded-Proto, ensuring correct HTTPS redirect generation from the backend registry.
+
+---
+---
 # 🧠 Architecture
 
 ```
@@ -153,7 +158,22 @@ docker pull 192.168.1.200/busybox
 docker tag hello-world 192.168.1.200/hello-world
 docker push 192.168.1.200/hello-world
 ```
+### Check repo existence
 
+```bash
+curl https://192.168.1.200/v2/
+curl http://192.168.1.200:50000/v2/
+should return {} in both case
+```
+
+### List repo content
+
+```bash
+curl -k https://192.168.1.200/v2/_catalog
+should return {"repositories":["busybox","hello-world"]}
+
+# -k flag to ignore SSL certificate problem
+```
 ---
 
 # 🐛 Major Debugging Challenge (Key Learning)
@@ -215,18 +235,21 @@ Without this header:
 
 Backends rely on headers like:
 
-* `X-Forwarded-Proto`
-* `X-Forwarded-Host`
+* `X-Forwarded-Proto →  HTTP vs HTTPS`
+* `X-Forwarded-Host →  original hostname`
+* `X-Forwarded-For → client IP`
 
 ---
 
-### 2. Docker Registry is Stateful
+### 2. Docker Registry is stateful in terms of upload sessions
 
 Push flow:
 
 ```
 POST → PATCH → PUT
 ```
+* It uses redirects during blob upload.
+* These redirects must be protocol-consistent.
 
 Even small inconsistencies break the flow.
 
